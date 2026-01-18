@@ -38,3 +38,6 @@ Thumbs.db
 # Local config
 .env
 *.local
+
+# Streamlit secrets (IMPORTANTE: nunca subir)
+.streamlit/secrets.toml
