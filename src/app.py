@@ -404,6 +404,27 @@ CUSTOM_CSS = """
         color: #171717 !important;
     }
     
+    /* Text Area - Corregir visibilidad */
+    .stTextArea textarea {
+        background-color: white !important;
+        color: #171717 !important;
+        border: 1px solid #a3a3a3 !important;
+        border-radius: 8px !important;
+    }
+    
+    .stTextArea textarea::placeholder {
+        color: #737373 !important;
+    }
+    
+    .stTextArea label {
+        color: #171717 !important;
+    }
+    
+    [data-testid="stSidebar"] .stTextArea textarea {
+        background-color: white !important;
+        color: #171717 !important;
+    }
+    
     /* Info boxes */
     .stAlert {
         border-radius: 10px;
@@ -559,6 +580,32 @@ def parse_excel_topics(uploaded_file) -> pd.DataFrame | None:
     except Exception as e:
         st.error(f"Error al leer el archivo Excel: {e}")
         return None
+
+
+def parse_text_topics(text: str) -> pd.DataFrame | None:
+    """
+    Parsea un bloque de texto donde cada línea es un tema.
+    
+    Args:
+        text: Texto con temas separados por líneas
+        
+    Returns:
+        DataFrame con los temas o None si no hay temas válidos
+    """
+    if not text or not text.strip():
+        return None
+    
+    lines = [line.strip() for line in text.strip().split("\n") if line.strip()]
+    
+    if not lines:
+        return None
+    
+    topics = [
+        {"Número": i, "Nombre del Tema": line}
+        for i, line in enumerate(lines, start=1)
+    ]
+    
+    return pd.DataFrame(topics)
 
 
 # =============================================================================
@@ -782,23 +829,64 @@ def main() -> None:
     with st.sidebar:
         st.header("⚙️ Configuración")
         
-        # Subida de archivo Excel
+        # Cargar Temario
         st.subheader("📁 Cargar Temario")
-        uploaded_file = st.file_uploader(
-            "Sube tu archivo Excel (.xlsx)",
-            type=["xlsx"],
-            help="El archivo debe contener columnas 'Número' y 'Nombre del Tema'"
+        
+        input_method = st.radio(
+            "Método de entrada",
+            options=["📝 Texto", "📊 Excel"],
+            horizontal=True,
+            help="Elige cómo quieres cargar tu temario"
         )
         
-        # Cargar o generar temas
-        if uploaded_file is not None:
-            topics_df = parse_excel_topics(uploaded_file)
-            if topics_df is None:
-                st.warning("No se pudo parsear el archivo. Usando temas por defecto.")
-                topics_df = generate_default_topics()
-            else:
-                st.success(f"✅ {len(topics_df)} temas cargados correctamente")
-        else:
+        topics_df = None
+        
+        if input_method == "📊 Excel":
+            uploaded_file = st.file_uploader(
+                "Sube tu archivo Excel (.xlsx)",
+                type=["xlsx"],
+                help="El archivo debe contener columnas 'Número' y 'Nombre del Tema'"
+            )
+            
+            if uploaded_file is not None:
+                topics_df = parse_excel_topics(uploaded_file)
+                if topics_df is None:
+                    st.warning("No se pudo parsear el archivo. Usando temas por defecto.")
+                else:
+                    st.success(f"✅ {len(topics_df)} temas cargados correctamente")
+        
+        else:  # Texto
+            # Inicializar el estado del texto si no existe
+            if "text_topics_input" not in st.session_state:
+                st.session_state.text_topics_input = ""
+            if "text_topics_loaded" not in st.session_state:
+                st.session_state.text_topics_loaded = None
+            
+            text_input = st.text_area(
+                "Pega tus temas (uno por línea)",
+                height=200,
+                placeholder="Tema 1: Introducción al derecho\nTema 2: La Constitución Española\nTema 3: Derechos fundamentales\n...",
+                help="Escribe o pega los temas de tu temario, cada línea será un tema",
+                key="text_topics_input"
+            )
+            
+            if st.button("🔄 Cargar Temas", use_container_width=True):
+                if text_input and text_input.strip():
+                    parsed_topics = parse_text_topics(text_input)
+                    if parsed_topics is not None:
+                        st.session_state.text_topics_loaded = parsed_topics
+                        st.success(f"✅ {len(parsed_topics)} temas cargados correctamente")
+                    else:
+                        st.warning("No se encontraron temas válidos en el texto.")
+                else:
+                    st.warning("Por favor, introduce al menos un tema.")
+            
+            # Usar los temas cargados si existen
+            if st.session_state.text_topics_loaded is not None:
+                topics_df = st.session_state.text_topics_loaded
+        
+        # Si no hay temas cargados, usar por defecto
+        if topics_df is None:
             topics_df = generate_default_topics()
             st.info(f"ℹ️ Usando {len(topics_df)} temas por defecto")
         
